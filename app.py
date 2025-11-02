@@ -261,7 +261,13 @@ def main():
 
         gmaps = googlemaps.Client(key=api_key)
 
-        address = st.text_input("住所や駅名などを入力してください", "東京駅")
+        # 出発地と目的地の入力
+        col1, col2 = st.columns(2)
+        with col1:
+            start_address = st.text_input("出発地を入力してください（例：自宅住所）", "東京駅")
+        with col2:
+            keyword = st.text_input("周辺で検索したい施設", "小児科")
+
         search_button = st.button("検索")
 
         if "hospitals" not in st.session_state:
@@ -270,25 +276,25 @@ def main():
         if search_button:
             try:
                 # 住所から緯度経度を取得
-                geocode_result = gmaps.geocode(address, language='ja')
+                geocode_result = gmaps.geocode(start_address, language='ja')
                 if not geocode_result:
-                    st.warning("指定された場所が見つかりませんでした。別のキーワードでお試しください。")
+                    st.warning("指定された出発地が見つかりませんでした。別のキーワードでお試しください。")
                     return
                 
-                location = geocode_result[0]['geometry']['location']
-                lat, lng = location['lat'], location['lng']
+                start_location = geocode_result[0]['geometry']['location']
+                start_lat, start_lng = start_location['lat'], start_location['lng']
 
                 # 周辺の小児科を検索
                 places_result = gmaps.places_nearby(
-                    location=(lat, lng),
+                    location=(start_lat, start_lng),
                     radius=2000,  # 半径2km
-                    keyword='小児科',
+                    keyword=keyword,
                     language='ja'
                 )
                 
                 st.session_state.hospitals = places_result.get('results', [])
                 if not st.session_state.hospitals:
-                    st.info("周辺に小児科が見つかりませんでした。")
+                    st.info("周辺に施設が見つかりませんでした。")
 
             except Exception as e:
                 st.error(f"検索中にエラーが発生しました: {e}")
@@ -308,13 +314,30 @@ def main():
                 })
             
             df = pd.DataFrame(hospitals_data)
-            st.write(f"「{address}」周辺の小児科リスト ({len(df)}件)")
+            st.write(f"「{start_address}」周辺の「{keyword}」リスト ({len(df)}件)")
             st.map(df[['lat', 'lon']])
 
             for _, row in df.iterrows():
                 st.write(f"**{row['name']}**")
                 st.write(f"住所: {row['address']}")
                 st.write(f"評価: {row['rating']} ⭐")
+
+                # --- Directions APIを呼び出して移動時間を取得 ---
+                try:
+                    directions_result = gmaps.directions(
+                        start_address,
+                        f"place_id:{row['place_id']}", # place_idを使うとより正確
+                        mode="driving", # "driving", "walking", "transit" (公共交通機関)
+                        language="ja"
+                    )
+                    if directions_result:
+                        duration = directions_result[0]['legs'][0]['duration']['text']
+                        distance = directions_result[0]['legs'][0]['distance']['text']
+                        st.info(f"🚗 車での所要時間: 約 {duration} ({distance})")
+                except Exception:
+                    # ルートが見つからない場合などはエラーになるため、その場合は何も表示しない
+                    pass
+
 
                 links = []
                 # 緯度・経度を使って、より直接的に地図上の場所を指定する
