@@ -373,7 +373,7 @@ def main():
                 st.write("---")
 
 
-    elif choice == "設定":
+    elif choice == "メール通知設定":
         st.subheader("設定")
 
         st.write("#### 通知設定")
