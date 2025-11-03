@@ -261,12 +261,23 @@ def main():
 
         gmaps = googlemaps.Client(key=api_key)
 
-        # 出発地と目的地の入力
+        # 出発地、目的地、移動手段の入力
         col1, col2 = st.columns(2)
         with col1:
             start_address = st.text_input("出発地を入力してください（例：自宅住所）", "東京駅")
         with col2:
             keyword = st.text_input("周辺で検索したい施設", "小児科")
+
+        mode_options_dict = {
+            "車": "driving",
+            "公共交通機関": "transit",
+            "徒歩": "walking"
+        }
+        selected_mode_japanese = st.selectbox(
+            "移動手段を選択",
+            options=list(mode_options_dict.keys())
+        )
+        selected_mode_api = mode_options_dict[selected_mode_japanese]
 
         search_button = st.button("検索")
 
@@ -326,14 +337,22 @@ def main():
                 try:
                     directions_result = gmaps.directions(
                         start_address,
-                        f"place_id:{row['place_id']}", # place_idを使うとより正確
-                        mode="driving", # "driving", "walking", "transit" (公共交通機関)
+                        f"place_id:{row['place_id']}",
+                        mode=selected_mode_api, # 選択された移動手段を使用
                         language="ja"
                     )
                     if directions_result:
                         duration = directions_result[0]['legs'][0]['duration']['text']
                         distance = directions_result[0]['legs'][0]['distance']['text']
-                        st.info(f"🚗 車での所要時間: 約 {duration} ({distance})")
+                        
+                        # アイコンを選択
+                        icon = "🚗"
+                        if selected_mode_api == "transit":
+                            icon = "🚇"
+                        elif selected_mode_api == "walking":
+                            icon = "🚶"
+                            
+                        st.info(f"{icon} {selected_mode_japanese}での所要時間: 約 {duration} ({distance})")
                 except Exception:
                     # ルートが見つからない場合などはエラーになるため、その場合は何も表示しない
                     pass
