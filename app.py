@@ -5,6 +5,7 @@ import pandas as pd
 import base64
 import googlemaps
 import os
+from urllib.parse import quote # Google Calendarリンク生成用
 
 # --- 予防接種マスターデータ ---
 # ワクチン名、接種回数、推奨接種期間（開始月齢, 基準からの間隔月数）
@@ -51,26 +52,26 @@ def calculate_schedule(birth_date):
     schedule.sort(key=lambda x: x['recommended_start'])
     return schedule
 
-def create_ical_content(vaccine_name, start_date):
-    """iCalendarファイル(.ics)のコンテンツをバイト形式で生成する"""
+def create_google_calendar_link(vaccine_name, start_date):
+    """Googleカレンダーへの追加リンクを生成する"""
+    base_url = "https://www.google.com/calendar/render?action=TEMPLATE"
+    
+    # タイトル
+    text = quote(f"予防接種: {vaccine_name}")
+    
+    # 日付 (終日)
+    start_date_str = start_date.strftime("%Y%m%d")
     end_date = start_date + timedelta(days=1)
+    end_date_str = end_date.strftime("%Y%m%d")
+    dates = f"{start_date_str}/{end_date_str}"
     
-    summary = f"予防接種: {vaccine_name}"
-    start_time = start_date.strftime("%Y%m%d")
-    end_time = end_date.strftime("%Y%m%d")
+    # 詳細
+    details = quote(f"{vaccine_name}の予防接種を受けましょう。\n病院の予約などを確認してください。")
     
-    ics_content = f"""BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-SUMMARY:{summary}
-DTSTART;VALUE=DATE:{start_time}
-DTEND;VALUE=DATE:{end_time}
-DESCRIPTION:忘れずに予防接種を受けましょう。
-END:VEVENT
-END:VCALENDAR"""
+    # 完全なURLを生成
+    full_url = f"{base_url}&text={text}&dates={dates}&details={details}"
     
-    return ics_content.encode('utf-8')
-
+    return f'<a href="{full_url}" target="_blank">📅 Googleカレンダーに追加</a>'
 
 def main():
     st.set_page_config(page_title="ベビワク・リマインダー", page_icon="👶")
@@ -240,15 +241,9 @@ def main():
                             else:
                                 st.info("🔜 予定", icon="🔜")
 
-                            # カレンダーリンクをダウンロードボタンに変更
+                            # Googleカレンダーへのリンクに変更
                             if item['status'] == '未接種':
-                                st.download_button(
-                                   label="📅 カレンダーに追加",
-                                   data=create_ical_content(item['vaccine_name'], item['recommended_start']),
-                                   file_name=f"{item['vaccine_name']}.ics",
-                                   mime="text/calendar",
-                                   key=f"cal_{unique_key}"
-                                )
+                                st.markdown(create_google_calendar_link(item['vaccine_name'], item['recommended_start']), unsafe_allow_html=True)
                     st.write("") # カード間のスペース
 
 
