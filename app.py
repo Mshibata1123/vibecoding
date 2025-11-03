@@ -167,53 +167,84 @@ def main():
         if selected_child:
             st.write(f"### {selected_child['name']}ちゃんのスケジュール")
             
-            # ヘッダー
-            col1, col2, col3, col4, col5 = st.columns([3, 3, 2, 3, 1])
-            col1.write("**ワクチン名**")
-            col2.write("**推奨接種期間**")
-            col3.write("**状況**")
-            col4.write("**接種記録**")
-            col5.write("") # カレンダーリンク用
-            
-            for i, item in enumerate(selected_child['schedule']):
-                with st.expander(f"{item['vaccine_name']} ({item['recommended_start'].strftime('%Y/%m/%d')}~)", expanded=False):
-                    is_due = item['recommended_start'] <= date.today() <= item['recommended_end']
-                    is_past = date.today() > item['recommended_end'] and item['status'] == '未接種'
+            schedule_data = selected_child['schedule']
+            birth_date = selected_child['birth_date']
 
-                    col1, col2, col3 = st.columns([4, 2, 2])
-                    
-                    with col1:
-                        st.write(f"**推奨期間:** {item['recommended_start'].strftime('%Y/%m/%d')} ~ {item['recommended_end'].strftime('%Y/%m/%d')}")
-                        unique_key = f"{selected_child['name']}_{i}"
-                        checked = st.checkbox("接種済みにする", key=f"check_{unique_key}", value=(item['status'] == '接種済み'))
+            # スケジュールを月齢でグループ化
+            grouped_schedule = {}
+            for i, item in enumerate(schedule_data):
+                r = relativedelta(item['recommended_start'], birth_date)
+                month_age = r.years * 12 + r.months
+                if month_age not in grouped_schedule:
+                    grouped_schedule[month_age] = []
+                # 元のインデックスも一緒に保存して、ウィジェットのキーを一意に保つ
+                grouped_schedule[month_age].append((item, i))
+
+            # 月齢の昇順で表示
+            for month_age in sorted(grouped_schedule.keys()):
+                
+                # 月齢の見出しを表示
+                if month_age == 0:
+                    st.subheader(f"🗓️ 生後1ヶ月未満")
+                elif month_age < 12:
+                    st.subheader(f"🗓️ 生後 {month_age} ヶ月")
+                else:
+                    years = month_age // 12
+                    months = month_age % 12
+                    age_str = f"{years}歳"
+                    if months > 0:
+                        age_str += f" {months}ヶ月"
+                    st.subheader(f"🗓️ {age_str}")
+
+                # その月に接種するワクチンのカードを表示
+                for item, original_index in grouped_schedule[month_age]:
+                    with st.container(border=True):
+                        col1, col2 = st.columns([2, 1])
+
+                        with col1:
+                            st.markdown(f"**{item['vaccine_name']}**")
+                            st.caption(f"推奨期間: {item['recommended_start'].strftime('%Y/%m/%d')} ~ {item['recommended_end'].strftime('%Y/%m/%d')}")
+
+                            unique_key = f"{selected_child['name']}_{original_index}"
+                            
+                            # 接種記録エリア
+                            sub_col1, sub_col2 = st.columns([1, 2])
+                            with sub_col1:
+                                checked = st.checkbox("接種済み", key=f"check_{unique_key}", value=(item['status'] == '接種済み'))
+                            with sub_col2:
+                                if checked:
+                                    item['status'] = '接種済み'
+                                    item['shot_date'] = st.date_input(
+                                        "接種日",
+                                        value=item.get('shot_date', item['recommended_start']),
+                                        key=f"date_{unique_key}",
+                                        label_visibility="collapsed"
+                                    )
+                                else:
+                                    item['status'] = '未接種'
+                                    if 'shot_date' in item:
+                                        del item['shot_date']
                         
-                        if checked:
-                            item['status'] = '接種済み'
-                            item['shot_date'] = st.date_input(
-                                "接種日",
-                                value=item.get('shot_date', item['recommended_start']),
-                                key=f"date_{unique_key}"
-                            )
-                        else:
-                            item['status'] = '未接種'
-                            if 'shot_date' in item:
-                                del item['shot_date']
-                    
-                    with col2:
-                        if item['status'] == '接種済み':
-                            st.success("✔️ 接種済み")
-                        elif is_due:
-                            st.warning("⚠️ 推奨期間")
-                        elif is_past:
-                            st.error("❌ 期間超過")
-                        else:
-                            st.info("🔜 予定")
-                    
-                    with col3:
-                        if item['status'] == '未接種':
-                            st.markdown(create_ical_link(item['vaccine_name'], item['recommended_start']), unsafe_allow_html=True)
-                        else:
-                            st.write(f"接種日: {item['shot_date'].strftime('%Y/%m/%d') if 'shot_date' in item else 'N/A'}")
+                        with col2:
+                            # 状況表示
+                            is_due = item['recommended_start'] <= date.today() <= item['recommended_end']
+                            is_past = date.today() > item['recommended_end'] and item['status'] == '未接種'
+                            
+                            if item['status'] == '接種済み':
+                                st.success("✔️ 接種済み", icon="✔️")
+                                if 'shot_date' in item:
+                                    st.write(f"接種日: {item['shot_date'].strftime('%Y/%m/%d')}")
+                            elif is_due:
+                                st.warning("⚠️ 推奨期間", icon="⚠️")
+                            elif is_past:
+                                st.error("❌ 期間超過", icon="❌")
+                            else:
+                                st.info("🔜 予定", icon="🔜")
+
+                            # カレンダーリンク
+                            if item['status'] == '未接種':
+                                st.markdown(create_ical_link(item['vaccine_name'], item['recommended_start']), unsafe_allow_html=True)
+                    st.write("") # カード間のスペース
 
 
     elif choice == "各ワクチンの情報":
