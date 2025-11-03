@@ -51,8 +51,8 @@ def calculate_schedule(birth_date):
     schedule.sort(key=lambda x: x['recommended_start'])
     return schedule
 
-def create_ical_link(vaccine_name, start_date):
-    """iCalendarファイル(.ics)を生成し、ダウンロードリンクを返す"""
+def create_ical_content(vaccine_name, start_date):
+    """iCalendarファイル(.ics)のコンテンツをバイト形式で生成する"""
     end_date = start_date + timedelta(days=1)
     
     summary = f"予防接種: {vaccine_name}"
@@ -69,9 +69,8 @@ DESCRIPTION:忘れずに予防接種を受けましょう。
 END:VEVENT
 END:VCALENDAR"""
     
-    b64 = base64.b64encode(ics_content.encode()).decode()
-    href = f'<a href="data:text/calendar;base64,{b64}" download="{vaccine_name}.ics">📅 追加</a>'
-    return href
+    return ics_content.encode('utf-8')
+
 
 def main():
     st.set_page_config(page_title="ベビワク・リマインダー", page_icon="👶")
@@ -241,9 +240,15 @@ def main():
                             else:
                                 st.info("🔜 予定", icon="🔜")
 
-                            # カレンダーリンク
+                            # カレンダーリンクをダウンロードボタンに変更
                             if item['status'] == '未接種':
-                                st.markdown(create_ical_link(item['vaccine_name'], item['recommended_start']), unsafe_allow_html=True)
+                                st.download_button(
+                                   label="📅 カレンダーに追加",
+                                   data=create_ical_content(item['vaccine_name'], item['recommended_start']),
+                                   file_name=f"{item['vaccine_name']}.ics",
+                                   mime="text/calendar",
+                                   key=f"cal_{unique_key}"
+                                )
                     st.write("") # カード間のスペース
 
 
