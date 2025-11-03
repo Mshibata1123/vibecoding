@@ -78,7 +78,7 @@ def main():
 
     st.title('👶 ベビワク・リマインダー')
 
-    menu = ["ダッシュボード", "お子様情報", "スケジュール一覧", "各ワクチンの情報", "病院検索", "設定"]
+    menu = ["ダッシュボード", "お子様情報", "スケジュール一覧", "各ワクチンの情報", "病院検索", "メール通知設定"]
     choice = st.sidebar.selectbox("メニュー", menu)
 
     if 'children' not in st.session_state:
