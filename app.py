@@ -419,15 +419,25 @@ def main():
                         unique_btn_key = f"btn_{row['place_id']}_{place_en}"
                         if btn_cols[list(place_types.keys()).index(place_jp)].button(f"{icons[place_jp]} {place_jp}", key=unique_btn_key):
                             
-                            # 検索を実行して結果を保存
+                            # 周辺施設を検索 (基本的な情報のみ)
                             nearby_places_result = gmaps.places_nearby(
                                 location=(row['lat'], row['lon']),
                                 radius=500,  # 半径500m
                                 keyword=place_jp,
                                 language='ja'
                             )
-                            st.session_state.nearby_places[row['place_id']] = nearby_places_result.get('results', [])
-                            # どのボタンが押されたか記録
+                            
+                            # 各施設の詳細情報を取得 (websiteなど)
+                            detailed_places = []
+                            for place in nearby_places_result.get('results', [])[:5]: # 上位5件に絞る
+                                try:
+                                    place_details = gmaps.place(place_id=place['place_id'], language='ja')
+                                    detailed_places.append(place_details['result'])
+                                except Exception:
+                                    # 詳細が取れない場合はスキップ
+                                    continue
+                            
+                            st.session_state.nearby_places[row['place_id']] = detailed_places
                             st.session_state.last_clicked = f"{row['place_id']}_{place_en}"
 
                     # 検索結果の表示エリア
@@ -437,7 +447,7 @@ def main():
                         
                         if nearby_places_list:
                             st.write(f"**周辺のスポット:**")
-                            for place in nearby_places_list[:5]: # 最大5件表示
+                            for place in nearby_places_list:
                                 place_name = place['name']
                                 place_rating = place.get('rating', 'なし')
                                 website_url = place.get('website')
