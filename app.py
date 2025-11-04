@@ -5,7 +5,7 @@ import pandas as pd
 import base64
 import googlemaps
 import os
-from urllib.parse import quote # Google Calendarリンク生成用
+from urllib.parse import quote
 
 # --- 予防接種マスターデータ ---
 # ワクチン名、接種回数、推奨接種期間（開始月齢, 基準からの間隔月数）
@@ -72,6 +72,7 @@ def create_google_calendar_link(vaccine_name, start_date):
     full_url = f"{base_url}&text={text}&dates={dates}&details={details}"
     
     return f'<a href="{full_url}" target="_blank">📅 Googleカレンダーに追加</a>'
+
 
 def main():
     st.set_page_config(page_title="ベビワク・リマインダー", page_icon="👶")
@@ -359,53 +360,92 @@ def main():
             st.write(f"「{start_address}」周辺の「{keyword}」リスト ({len(df)}件)")
             st.map(df[['lat', 'lon']])
 
-            for _, row in df.iterrows():
-                st.write(f"**{row['name']}**")
-                st.write(f"住所: {row['address']}")
-                st.write(f"評価: {row['rating']} ⭐")
+            # Session stateの初期化
+            if 'nearby_places' not in st.session_state:
+                st.session_state.nearby_places = {}
 
-                # --- Directions APIを呼び出して移動時間を取得 ---
-                try:
-                    directions_result = gmaps.directions(
-                        start_address,
-                        f"place_id:{row['place_id']}",
-                        mode=selected_mode_api, # 選択された移動手段を使用
-                        language="ja"
-                    )
-                    if directions_result:
-                        duration = directions_result[0]['legs'][0]['duration']['text']
-                        distance = directions_result[0]['legs'][0]['distance']['text']
-                        
-                        # アイコンを選択
-                        icon = "🚗"
-                        if selected_mode_api == "transit":
-                            icon = "🚇"
-                        elif selected_mode_api == "walking":
-                            icon = "🚶"
+            for index, row in df.iterrows():
+                with st.container(border=True):
+                    st.write(f"**{row['name']}**")
+                    st.write(f"住所: {row['address']}")
+                    st.write(f"評価: {row['rating']} ⭐")
+
+                    # --- Directions APIを呼び出して移動時間を取得 ---
+                    try:
+                        directions_result = gmaps.directions(
+                            start_address,
+                            f"place_id:{row['place_id']}",
+                            mode=selected_mode_api, # 選択された移動手段を使用
+                            language="ja"
+                        )
+                        if directions_result:
+                            duration = directions_result[0]['legs'][0]['duration']['text']
+                            distance = directions_result[0]['legs'][0]['distance']['text']
                             
-                        st.info(f"{icon} {selected_mode_japanese}での所要時間: 約 {duration} ({distance})")
-                except Exception:
-                    # ルートが見つからない場合などはエラーになるため、その場合は何も表示しない
-                    pass
+                            # アイコンを選択
+                            icon = "🚗"
+                            if selected_mode_api == "transit":
+                                icon = "🚇"
+                            elif selected_mode_api == "walking":
+                                icon = "🚶"
+                                
+                            st.info(f"{icon} {selected_mode_japanese}での所要時間: 約 {duration} ({distance})")
+                    except Exception:
+                        # ルートが見つからない場合などはエラーになるため、その場合は何も表示しない
+                        pass
 
 
-                links = []
-                # 緯度・経度を使って、より直接的に地図上の場所を指定する
-                if pd.notna(row['lat']) and pd.notna(row['lon']):
-                    maps_url = f"https://www.google.com/maps?q={row['lat']},{row['lon']}"
-                    links.append(f'<a href="{maps_url}" target="_blank">Google Mapで開く</a>')
-                
-                if row['website']:
-                    links.append(f'<a href="{row["website"]}" target="_blank">公式サイト</a>')
+                    links = []
+                    # 緯度・経度を使って、より直接的に地図上の場所を指定する
+                    if pd.notna(row['lat']) and pd.notna(row['lon']):
+                        maps_url = f"https://www.google.com/maps?q={row['lat']},{row['lon']}"
+                        links.append(f'<a href="{maps_url}" target="_blank">Google Mapで開く</a>')
+                    
+                    if row['website']:
+                        links.append(f'<a href="{row["website"]}" target="_blank">公式サイト</a>')
 
-                if links:
-                    st.markdown(" | ".join(links), unsafe_allow_html=True)
-                
-                st.write("---")
+                    if links:
+                        st.markdown(" | ".join(links), unsafe_allow_html=True)
+                    
+                    st.write("---")
+                    st.write("**🏥 この施設の周辺を検索:**")
+                    
+                    # 周辺検索ボタン
+                    btn_cols = st.columns(3)
+                    place_types = {"カフェ": "cafe", "レストラン": "restaurant", "公園": "park"}
+                    icons = {"カフェ": "☕", "レストラン": "🍔", "公園": "🌳"}
+                    
+                    for place_jp, place_en in place_types.items():
+                        unique_btn_key = f"btn_{row['place_id']}_{place_en}"
+                        if btn_cols[list(place_types.keys()).index(place_jp)].button(f"{icons[place_jp]} {place_jp}", key=unique_btn_key):
+                            
+                            # 検索を実行して結果を保存
+                            nearby_places_result = gmaps.places_nearby(
+                                location=(row['lat'], row['lon']),
+                                radius=500,  # 半径500m
+                                keyword=place_jp,
+                                language='ja'
+                            )
+                            st.session_state.nearby_places[row['place_id']] = nearby_places_result.get('results', [])
+                            # どのボタンが押されたか記録
+                            st.session_state.last_clicked = f"{row['place_id']}_{place_en}"
+
+                    # 検索結果の表示エリア
+                    if row['place_id'] in st.session_state.nearby_places and st.session_state.last_clicked.startswith(row['place_id']):
+                        
+                        nearby_places_list = st.session_state.nearby_places[row['place_id']]
+                        
+                        if nearby_places_list:
+                            st.write(f"**周辺のスポット:**")
+                            for place in nearby_places_list[:5]: # 最大5件表示
+                                st.markdown(f"- **{place['name']}** (評価: {place.get('rating', 'なし')})")
+                        else:
+                            st.info("周辺に該当する施設は見つかりませんでした。")
+                st.write("") # コンテナ間のスペース
 
 
     elif choice == "メール通知設定":
-        st.subheader("設定")
+        st.subheader("設定") # タイトルを元に戻す
 
         st.write("#### 通知設定")
         
