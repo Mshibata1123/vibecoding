@@ -438,7 +438,15 @@ def main():
                         if nearby_places_list:
                             st.write(f"**周辺のスポット:**")
                             for place in nearby_places_list[:5]: # 最大5件表示
-                                st.markdown(f"- **{place['name']}** (評価: {place.get('rating', 'なし')})")
+                                place_name = place['name']
+                                place_rating = place.get('rating', 'なし')
+                                
+                                # 緯度経度からGoogle Mapリンクを生成
+                                place_lat = place['geometry']['location']['lat']
+                                place_lon = place['geometry']['location']['lng']
+                                maps_link = f"https://www.google.com/maps?q={place_lat},{place_lon}"
+                                
+                                st.markdown(f"- **{place_name}** (評価: {place_rating}) <a href='{maps_link}' target='_blank'>📍</a>", unsafe_allow_html=True)
                         else:
                             st.info("周辺に該当する施設は見つかりませんでした。")
                 st.write("") # コンテナ間のスペース
