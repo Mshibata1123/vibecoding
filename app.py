@@ -440,13 +440,20 @@ def main():
                             for place in nearby_places_list[:5]: # 最大5件表示
                                 place_name = place['name']
                                 place_rating = place.get('rating', 'なし')
-                                
+                                website_url = place.get('website')
+
                                 # 緯度経度からGoogle Mapリンクを生成
                                 place_lat = place['geometry']['location']['lat']
                                 place_lon = place['geometry']['location']['lng']
                                 maps_link = f"https://www.google.com/maps?q={place_lat},{place_lon}"
                                 
-                                st.markdown(f"- **{place_name}** (評価: {place_rating}) <a href='{maps_link}' target='_blank'>📍</a>", unsafe_allow_html=True)
+                                # Webサイトがあれば施設名をリンクにし、なければテキストのまま
+                                if website_url:
+                                    display_name = f"<a href='{website_url}' target='_blank'>{place_name}</a>"
+                                else:
+                                    display_name = place_name
+
+                                st.markdown(f"- **{display_name}** (評価: {place_rating}) <a href='{maps_link}' target='_blank'>📍</a>", unsafe_allow_html=True)
                         else:
                             st.info("周辺に該当する施設は見つかりませんでした。")
                 st.write("") # コンテナ間のスペース
